@@ -212,7 +212,7 @@ class EdataCard extends LitElement {
         >
           <div
             id="left"
-            style="position: absolute; width: 25%; height: 90%; top: 0; left: 10px; display: flex; align-items: top; justify-content: left; padding-top: 10px"
+            style="position: absolute; width: 40%; height: 90%; top: 0; left: 10px; display: flex; align-items: top; justify-content: left; padding-top: 10px"
           >
             <div
               id="top-left-box"
@@ -249,7 +249,7 @@ class EdataCard extends LitElement {
 
           <div
             id="right"
-            style="position: absolute; width: 25%; height: 90%; top: 0; right: 10px; display: flex; align-items: top; justify-content: right; padding-top: 10px"
+            style="position: absolute; width: 40%; height: 90%; top: 0; right: 10px; display: flex; align-items: top; justify-content: right; padding-top: 10px"
           >
             <div
               id="top-right-box"
@@ -485,7 +485,7 @@ class EdataCard extends LitElement {
         break;
     }
 
-    this._top_left_value = p1 + p2 + p3;
+    this._top_left_value = Math.round((p1 + p2 + p3) * 100) / 100;
     this._top_left_unit = DEF_ENERGY_UNIT;
     this._top_left_title = getLabel("total");
     this._bottom_right_unit = "";
