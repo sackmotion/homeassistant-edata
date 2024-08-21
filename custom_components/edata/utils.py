@@ -135,7 +135,7 @@ def fetch_changes_from_mem(
     elif aggr == "month":
         dt_unit = relativedelta.relativedelta(months=1)
     else:
-        _LOGGER.warning("Not a valid aggr method '%s'", aggr)
+        return None
 
     ref = datetime.now().replace(hour=0, minute=0, second=0)
     try:
@@ -148,9 +148,6 @@ def fetch_changes_from_mem(
         ):
             return None
     except Exception:
-        return None
-
-    if aggr not in ["hour", "day", "month"]:
         return None
 
     if stat_id == const.STAT_ID_KWH(scups):
