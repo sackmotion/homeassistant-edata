@@ -3,7 +3,7 @@ import {
   html,
 } from "https://unpkg.com/lit-element@2.0.1/lit-element.js?module";
 import "https://cdnjs.cloudflare.com/ajax/libs/apexcharts/3.45.1/apexcharts.min.js?module";
-
+import tinycolor from "https://esm.sh/tinycolor2";
 // Set program constants and definitions
 const PROG_NAME = "edata-card";
 const VALID_CHART_TEMPLATES = [
@@ -188,7 +188,10 @@ class EdataCard extends LitElement {
     this._hass = hass;
 
     // Override defaults based on dark mode
-    if (hass.themes.darkMode) {
+    let backgroundColor = window.getComputedStyle(document.documentElement).getPropertyValue('--card-background-color');
+    const isLightTheme = tinycolor(backgroundColor).getLuminance() > 0.5
+
+    if (hass.themes.darkMode || !isLightTheme) {
       Apex.theme = {
         mode: "dark",
       };
