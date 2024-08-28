@@ -22,8 +22,9 @@ Para la visualización de los datos, existen varias alternativas:
 5. [Integración con panel Energía (Long Term Statistics)](#Integración-con-panel-Energía-Long-Term-Statistics)<br>
 6. [Configurar la tarificación](#Configurar-la-tarificación)<br>
 7. [Gráficas con tarjeta nativa](#Gráficas-con-tarjeta-nativa)<br>
-8. [Acceso a datos descargados](#Acceso-a-datos-descargados)<br>
-9. [FAQ](#FAQ)
+8. [Gráficas sobre ApexCharts-card](#Gráficas-sobre-apexcharts-card)<br>
+9. [Acceso a datos descargados](#Acceso-a-datos-descargados)<br>
+10. [FAQ](#FAQ)
 
 ## Ejemplo de Dashboard
 
@@ -77,19 +78,19 @@ La integración combina almacenamiento local (en ficheros), con la base de datos
 | `edata:xxxx_p1_consumption` | `sum` | `kWh` | Consumo en P1 |
 | `edata:xxxx_p2_consumption` | `sum` | `kWh` | Consumo en P2 |
 | `edata:xxxx_p3_consumption` | `sum` | `kWh` | Consumo en P3 |
-| `edata:xxxx_surplus` | `sum` | `kWh` | Generación total  (>= `2024.07.0`)|
-| `edata:xxxx_maximeter` | `max` | `kW` | Maxímetro (>= `2022.09.0`)|
-| `edata:xxxx_p1_maximeter` | `max` | `kW` | Maxímetro en P1 (>= `2022.09.0`)|
-| `edata:xxxx_p2_maximeter` | `max` | `kW` | Maxímetro en P2 (>= `2022.09.0`)|
-| `edata:xxxx_cost`*  | `float` | `€` | Coste total (>= `2022.09.0`)|
-| `edata:xxxx_p1_cost`*  | `float` | `€` | Coste total en P1 (>= `2022.12.4`)|
-| `edata:xxxx_p2_cost`*  | `float` | `€` | Coste total en P2 (>= `2022.12.4`)|
-| `edata:xxxx_p3_cost`*  | `float` | `€` | Coste total en P3 (>= `2022.12.4`)|
-| `edata:xxxx_power_cost`*  | `float` | `€` | Coste (potencia) (>= `2022.09.0`)|
-| `edata:xxxx_energy_cost`*  | `float` | `€` | Coste (energía) (>= `2022.09.0`)|
-| `edata:xxxx_p1_energy_cost`*  | `float` | `€` | Coste (energía) en P1 (>= `2022.12.4`)|
-| `edata:xxxx_p2_energy_cost`*  | `float` | `€` | Coste (energía) en P2 (>= `2022.12.4`)|
-| `edata:xxxx_p3_energy_cost`*  | `float` | `€` | Coste (energía) en P3 (>= `2022.12.4`)|
+| `edata:xxxx_surplus` | `sum` | `kWh` | Generación total  |
+| `edata:xxxx_maximeter` | `max` | `kW` | Maxímetro |
+| `edata:xxxx_p1_maximeter` | `max` | `kW` | Maxímetro en P1 |
+| `edata:xxxx_p2_maximeter` | `max` | `kW` | Maxímetro en P2 |
+| `edata:xxxx_cost`*  | `float` | `€` | Coste total |
+| `edata:xxxx_p1_cost`*  | `float` | `€` | Coste total en P1 |
+| `edata:xxxx_p2_cost`*  | `float` | `€` | Coste total en P2 |
+| `edata:xxxx_p3_cost`*  | `float` | `€` | Coste total en P3 |
+| `edata:xxxx_power_cost`*  | `float` | `€` | Coste (potencia) |
+| `edata:xxxx_energy_cost`*  | `float` | `€` | Coste (energía) |
+| `edata:xxxx_p1_energy_cost`*  | `float` | `€` | Coste (energía) en P1 |
+| `edata:xxxx_p2_energy_cost`*  | `float` | `€` | Coste (energía) en P2 |
+| `edata:xxxx_p3_energy_cost`*  | `float` | `€` | Coste (energía) en P3 |
 
 \* Los campos marcados con asterisco no están habilitados por defecto, y se habilitan como indica el siguiente apartado.
 
@@ -172,6 +173,8 @@ A continuación se ofrece la configuración orientativa para **visualizar los da
 > **IMPORTANTE:** en las siguientes tarjetas deberá reemplazar TODAS las ocurrencias de `xxxx` por sus últimos cuatro caracteres de su CUPS.
 >
 > **El nombre de las entidades puede ser distinto en su instalación. Revíselo.**
+
+Además, puedes consultar la sección _Discussions_ del repositorio, en el que los usuarios pueden compartir sus configuraciones, por si te gusta alguna.
 
 ### Consumo diario
 
@@ -450,26 +453,25 @@ Para acceder a los mismos, puede consumir la propia API de websockets que utiliz
 
 ## FAQ
 
-**¿Por qué no me funciona?**
+**No tengo datos de ayer**
 
->Hermosa pregunta:
+Muchos me escribís preguntando por los datos de ayer. Veréis, no es tan sencillo. La API de Datadis sólo te permite hacer una misma petición cada 24 horas, de modo que si a vuestra integración le toca a las 17h (por ejemplo), y tu distribuidora sube tus datos de ayer a las 19h, nunca dispondrás de los datos de ayer. Esto puede mitigarse con un pequeño algoritmo que vaya retrasando la petición una hora cada día hasta encontrar la franja en la que encuentres los datos, de modo que al final "sincronices" la hora de tu descarga con una hora próxima a la de la adición de los datos, o indicando una ventana para la actualización (y que cada uno investigue cuál le viene bien a su CUPS).
+
+**Los datos me aparecen en la web de Datadis pero no en la integración**
+
+Los datos que sí aparecen en la web de Datadis, pero no en edata. Nosotros consumimos la API privada de Datadis, pero ellos en sus gráficos no utilizan la misma API (o tienen distintos privilegios). Esto no es tan raro, ni una mala práctica (de hecho es buena). Este es el motivo por el cual la disponibilidad de los datos varía entre ambas fuentes.
+
+**He cambiado de comercializadora y he dejado de recibir datos**
+
+Los datos del mes de inicio de un nuevo contrato no aparecen, porque no los devuelve la API de Datadis. Desconozco el motivo pero es así.
+
+**Veo datos inconsistentes, huecos, o el panel de energía no muestra lo mismo que las tarjetas**
+
+> Desde la versión `2024.07.5` existe un botón asociado a los dispositivos de edata llamado _Restablecer_ (o equivalente, según el idioma). Este botón restablece el último año de datos solicitándolos de nuevo a Datadis y regenera las estadísticas acorde a los nuevos datos si detecta incoherencias.
 >
->0. Si no ve los datos en datadis.es, no los verá aquí, trate de solucionar primero lo anterior. Si no ha leído o seguido las instrucciones, hágalo.
->1. Si no se ha creado el sensor `sensor.edata_xxxx`, algo ha fallado y posiblemente sea una mala configuración del sensor, revise el log y siga las instrucciones.
->2. Si el sensor se ha creado, pero sólo el atributo CUPS está relleno, es posible que Datadis no esté operativo en ese instante, deje la integración funcionando y se recuperará sola.
->3. Si el sensor se ha creado, y el atributo CUPS no está relleno, ha debido introducir erróneamente (a) sus credenciales, (b) su CUPS. Copie y pegue todos los datos anteriores desde la web de Datadis.es. Insisto, copie y pegue, algunas distribuidoras ofrecen un número de CUPS con dos dígitos adicionales que no coinciden con el de Datadis.
->4. Si no tiene idea de qué ocurre, puede habilitar la depuración en la configuración del dispositivo.
->Si nada de lo anterior funciona, cree una *issue* en <https://github.com/uvejota/homeassistant-edata/issues>, indicando versión, sintomatología y aportando los logs del paciente, y trataré de ayudarle lo antes posible.
-
-**¿Por qué hay huecos en mis datos?**
-
->Respuesta corta: porque la API de datadis no te ha dado esos datos.
->
->Respuesta larga: porque la API de datadis es impredecible y a veces responde datos vacíos `[]`, o códigos `50X`.
->
->Lo mejor que puedes hacer es esperar, sé que quieres ver tus datos ya, pero confía en mí, recargar la integración o reiniciar HA sólo va a conseguir que saturemos la API de Datadis. La integración está preparada para consultar cada hora (lo cual me parece más que razonable) los datos que le faltan completando los huecos. Cuanto más datos te faltan (e.g., primera ejecución), más tarda.
+> **No es recomendable utilizarlo a la ligera, ya que utiliza la configuración de tarificación más reciente, y además descarta todos los precios PVPC que ya hubiese descargado con antelación.**
 
 
-**Veo huecos o consumos duplicados**
+**Nada de lo anterior soluciona mi problema**
 
->Desde la versión `2022.09.0`, puedes regenerar las estadísticas manualmente mediante un servicio (`Herramientas para desarrolladores > Servicios > edata.recreate_statistics`).
+Pásate por las _issues_ del repositorio por si alguien tiene el mismo problema. En caso contrario, puedes crear tú la _issue_ aportando logs y descripción de tu problema.

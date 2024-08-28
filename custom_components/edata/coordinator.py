@@ -6,10 +6,12 @@ import asyncio
 import contextlib
 from datetime import datetime, timedelta
 import logging
+import os
 
 from dateutil.relativedelta import relativedelta
 
-from edata.definitions import ATTRIBUTES, PricingRules
+from edata.const import PROG_NAME as EDATA_PROG_NAME
+from edata.definitions import ATTRIBUTES, EdataData, PricingRules
 from edata.helpers import EdataHelper
 from edata.processors import utils
 from homeassistant.components.recorder.db_schema import Statistics
@@ -57,12 +59,13 @@ class EdataCoordinator(DataUpdateCoordinator):
         """Initialize the data handler.."""
 
         # Number of cached months (starting from 1st day of the month will be automatic)
-        self._default_cache_months = 12
+        self.cache_months = 12
 
         # Store properties
         self.hass = hass
         self.cups = cups.upper()
         self.authorized_nif = authorized_nif
+        self.scups = scups.upper()
         self.id = scups.lower()
         self.billing_rules = billing
 
@@ -84,7 +87,7 @@ class EdataCoordinator(DataUpdateCoordinator):
 
         # Making self._data to reference hass.data[const.DOMAIN][self.id] so we can use it like an alias
         self._data = hass.data[const.DOMAIN][self.id]
-        self._data["edata"] = self._edata
+        self._data[EDATA_PROG_NAME] = self._edata
         self._data.update(
             {
                 const.DATA_STATE: const.STATE_LOADING,
@@ -132,9 +135,6 @@ class EdataCoordinator(DataUpdateCoordinator):
             const.STAT_ID_P2_KWH(self.id),
             const.STAT_ID_P3_KWH(self.id),
             const.STAT_ID_SURP_KWH(self.id),
-            # const.STAT_ID_P1_SURP_KWH(self.id),
-            # const.STAT_ID_P2_SURP_KWH(self.id),
-            # const.STAT_ID_P3_SURP_KWH(self.id),
         }
 
         self.maximeter_stat_ids = {
@@ -195,7 +195,7 @@ class EdataCoordinator(DataUpdateCoordinator):
         await self.hass.async_add_executor_job(
             self._edata.update,
             datetime.today().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            - relativedelta(months=self._default_cache_months),  # since: 1 year ago
+            - relativedelta(months=self.cache_months),  # since N cache_months
             datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
             - timedelta(minutes=1),  # to: yesterday midnight
         )
@@ -240,6 +240,8 @@ class EdataCoordinator(DataUpdateCoordinator):
 
     async def _update_last_stats_summary(self):
         """Update self._last_stats_sum and self._last_stats_dt."""
+
+        _LOGGER.debug("%s: checking latest statistics", self.scups)
 
         statistic_ids = await get_db_instance(self.hass).async_add_executor_job(
             list_statistic_ids, self.hass
@@ -296,6 +298,93 @@ class EdataCoordinator(DataUpdateCoordinator):
             if x in last_stats[x] and "sum" in last_stats[x][x][0]
         }
 
+    async def check_statistics_integrity(self) -> bool:
+        """Check if statistics differ from stored data since a given datetime."""
+
+        _LOGGER.warning("Running statistics integrity check")
+        # recalculate all data
+        await self.hass.async_add_executor_job(self._edata.process_data, False)
+
+        # give from_dt a proper default value
+        from_dt = (
+            datetime.now().replace(day=1, hour=0, minute=0, second=0)
+            - timedelta(hours=1)
+            - relativedelta(months=self.cache_months)
+        )
+        try:
+            from_dt = max(
+                from_dt, self._edata.data["consumptions_monthly_sum"][0]["datetime"]
+            )
+        except KeyError:
+            _LOGGER.warning("Skipping integrity check due to errors")
+
+        # get all statistic_ids starting with edata:<id/scups>
+        all_ids = await get_db_instance(self.hass).async_add_executor_job(
+            list_statistic_ids, self.hass
+        )
+        to_check = [
+            x["statistic_id"]
+            for x in all_ids
+            if x["statistic_id"].startswith(self._stat_id_preamble)
+        ]
+
+        if len(to_check) == 0:
+            _LOGGER.warning(
+                "%s: no statistics found",
+                self.scups,
+            )
+            return False
+
+        data = await get_db_instance(self.hass).async_add_executor_job(
+            statistics_during_period,
+            self.hass,
+            from_dt,
+            datetime.now(),
+            set(to_check),
+            "month",
+            None,
+            {"change"},
+        )
+
+        # Checksums
+        _consumptions_checksum = 0
+        _surplus_checksum = 0
+
+        for c in self._edata.data["consumptions_monthly_sum"]:
+            _consumptions_checksum += c["value_kWh"]
+            _surplus_checksum += c["surplus_kWh"]
+
+        _stats_sum = 0
+        if (stats := data.get(const.STAT_ID_KWH(self.id), None)) is not None:
+            for c in stats:
+                _stats_sum += c["change"]
+
+        if round(_consumptions_checksum) != round(_stats_sum):
+            _LOGGER.warning(
+                "%s: consumptions statistics are corrupt, checksum is %s, got %s",
+                self.scups,
+                _consumptions_checksum,
+                _stats_sum,
+            )
+            return False
+
+        _stats_sum = 0
+        if (stats := data.get(const.STAT_ID_SURP_KWH(self.id), None)) is not None:
+            for c in stats:
+                _stats_sum += c["change"]
+
+        if round(_surplus_checksum) != round(_stats_sum):
+            _LOGGER.warning(
+                "%s: surplus statistics are corrupt, checksum is %s, got %s",
+                self.scups,
+                _surplus_checksum,
+                _stats_sum,
+            )
+            return False
+
+        _LOGGER.warning("No corrupt statistics detected")
+        return True
+
     async def rebuild_recent_statistics(self, from_dt: datetime | None = None):
         """Rebuild edata statistics since a given datetime. Defaults to last year."""
 
@@ -307,7 +396,7 @@ class EdataCoordinator(DataUpdateCoordinator):
             from_dt = (
                 datetime.now().replace(day=1, hour=0, minute=0, second=0)
                 - timedelta(hours=1)
-                - relativedelta(years=1)
+                - relativedelta(months=self.cache_months)
             )
 
         # get all statistic_ids starting with edata:<id/scups>
@@ -348,6 +437,7 @@ class EdataCoordinator(DataUpdateCoordinator):
 
         # now restore old statistics
         for stat_id in old_data:
+            _LOGGER.warning("Restoring statistic id '%s'", stat_id)
             get_db_instance(self.hass).async_import_statistics(
                 old_metadata[stat_id][1],
                 [
@@ -371,8 +461,12 @@ class EdataCoordinator(DataUpdateCoordinator):
     async def update_statistics(self):
         """Update Long Term Statistics with newly found data."""
 
+        _LOGGER.debug("%s: updating recent statistics", self.scups)
+
         # first fetch from db last statistics for current id
         await self._update_last_stats_summary()
+
+        _LOGGER.debug("%s: last statistics are %s", self.scups, self._last_stats_dt)
 
         await self._update_consumption_stats()
         await self._update_maximeter_stats()
@@ -385,6 +479,13 @@ class EdataCoordinator(DataUpdateCoordinator):
         """Add new statistics as a bundle."""
 
         for stat_id in new_stats:
+            _LOGGER.debug(
+                "%s: inserting %s new values for statistic '%s'",
+                self.scups,
+                len(new_stats[stat_id]),
+                stat_id,
+            )
+
             if stat_id in self.consumption_stat_ids:
                 metadata = StatisticMetaData(
                     has_mean=False,
@@ -418,6 +519,8 @@ class EdataCoordinator(DataUpdateCoordinator):
 
     async def _update_consumption_stats(self) -> dict[str, list[StatisticData]]:
         """Build long-term statistics for consumptions."""
+
+        _LOGGER.debug("%s: building new consumption statistics", self.scups)
 
         new_stats = {x: [] for x in self.consumption_stat_ids}
 
@@ -457,6 +560,9 @@ class EdataCoordinator(DataUpdateCoordinator):
 
     async def _update_cost_stats(self) -> dict[str, list[StatisticData]]:
         """Build long-term statistics for cost."""
+
+        _LOGGER.debug("%s: building new costs statistics", self.scups)
+
         new_stats = {x: [] for x in self.cost_stat_ids}
 
         # init as 0 if need
@@ -538,6 +644,8 @@ class EdataCoordinator(DataUpdateCoordinator):
     async def _update_maximeter_stats(self) -> dict[str, list[StatisticData]]:
         """Build long-term statistics for maximeter."""
 
+        _LOGGER.debug("%s: building new maximeter statistics", self.scups)
+
         _label = "value_kW"
         new_stats = {x: [] for x in self.maximeter_stat_ids}
 
@@ -581,3 +689,43 @@ class EdataCoordinator(DataUpdateCoordinator):
                 config_entry.options["update_billing_since"]
             )
             await self.rebuild_recent_statistics(dt_from)
+
+    def soft_wipe(self):
+        """Apply a soft wipe."""
+
+        edata_dir = os.path.join(self.hass.config.path(STORAGE_DIR), EDATA_PROG_NAME)
+        edata_file = os.path.join(edata_dir, f"edata_{self.cups.lower()}.json")
+        edata_backup_file = edata_file + ".bck"
+
+        _LOGGER.warning("%s, soft wipe requested, preparing a backup", self.scups)
+        if os.path.exists(edata_file):
+            _LOGGER.warning(
+                "%s: backup file is '%s', rename it back to '%s' to restore it",
+                self.scups,
+                edata_backup_file,
+                edata_file,
+            )
+            os.rename(edata_file, edata_backup_file)
+
+        _LOGGER.debug("%s: deleting mem cache", self.scups)
+        self._edata.data = EdataData(
+            supplies=[],
+            contracts=[],
+            consumptions=[],
+            maximeter=[],
+            pvpc=[],
+            consumptions_daily_sum=[],
+            consumptions_monthly_sum=[],
+            cost_hourly_sum=[],
+            cost_daily_sum=[],
+            cost_monthly_sum=[],
+        )
+        self._edata.last_update = {x: datetime(1970, 1, 1) for x in self._edata.data}
+
+    async def async_soft_reset(self):
+        """Apply an async full reset."""
+
+        await self.hass.async_add_executor_job(self.soft_wipe)
+        await self._async_update_data()
+        if not await self.check_statistics_integrity():
+            await self.rebuild_recent_statistics()

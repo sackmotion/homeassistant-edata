@@ -1,6 +1,11 @@
 {
   "title": "edata",
   "entity": {
+    "button": {
+      "soft_reset": {
+        "name": "Restablecer"
+      }
+    },
     "sensor": {
       "month_kwh": {
         "name": "Consumo en el mes"

@@ -2,23 +2,12 @@
 
 import logging
 
-from edata.definitions import PricingRules
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import (
-    CONF_PASSWORD,
-    CONF_USERNAME,
-    CURRENCY_EURO,
-    EVENT_HOMEASSISTANT_START,
-    UnitOfEnergy,
-    UnitOfPower,
-)
-from homeassistant.core import CoreState, HomeAssistant, callback
-from homeassistant.helpers import entity_platform
+from homeassistant.const import CURRENCY_EURO, UnitOfEnergy, UnitOfPower
+from homeassistant.core import HomeAssistant
 
 from . import const
-from .coordinator import EdataCoordinator
-from .entity import EdataEntity
-from .websockets import async_register_websockets
+from .entity import EdataSensorEntity
 
 # HA variables
 _LOGGER = logging.getLogger(__name__)
@@ -145,78 +134,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     hass.data.setdefault(const.DOMAIN, {})
 
     # get configured parameters
-    usr = config_entry.data[CONF_USERNAME]
-    pwd = config_entry.data[CONF_PASSWORD]
-    cups = config_entry.data[const.CONF_CUPS]
-    authorized_nif = config_entry.data.get(const.CONF_AUTHORIZEDNIF, None)
     scups = config_entry.data[const.CONF_SCUPS]
-    billing_enabled = config_entry.options.get(const.CONF_BILLING, False)
-
-    if config_entry.options.get(const.CONF_DEBUG, False):
-        logging.getLogger("edata").setLevel(logging.INFO)
-    else:
-        logging.getLogger("edata").setLevel(logging.WARNING)
-
-    if billing_enabled:
-        pricing_rules = {
-            const.PRICE_ELECTRICITY_TAX: const.DEFAULT_PRICE_ELECTRICITY_TAX,
-            const.PRICE_IVA_TAX: const.DEFAULT_PRICE_IVA,
-        }
-        pricing_rules.update(
-            {
-                x: config_entry.options[x]
-                for x in config_entry.options
-                if x
-                in (
-                    const.CONF_CYCLE_START_DAY,
-                    const.PRICE_P1_KW_YEAR,
-                    const.PRICE_P2_KW_YEAR,
-                    const.PRICE_P1_KWH,
-                    const.PRICE_P2_KWH,
-                    const.PRICE_P3_KWH,
-                    const.PRICE_METER_MONTH,
-                    const.PRICE_MARKET_KW_YEAR,
-                    const.PRICE_ELECTRICITY_TAX,
-                    const.PRICE_IVA_TAX,
-                    const.BILLING_ENERGY_FORMULA,
-                    const.BILLING_POWER_FORMULA,
-                    const.BILLING_OTHERS_FORMULA,
-                    const.BILLING_SURPLUS_FORMULA,
-                )
-            }
-        )
-    else:
-        pricing_rules = None
-
-    platform = entity_platform.async_get_current_platform()
-
-    platform.async_register_entity_service(
-        "recreate_statistics",
-        {},
-        "service_recreate_statistics",
-    )
-
-    coordinator = await EdataCoordinator.async_setup(
-        hass,
-        usr,
-        pwd,
-        cups,
-        scups,
-        authorized_nif,
-        pricing_rules,
-    )
-
-    # postpone first refresh to speed up startup
-    @callback
-    async def async_first_refresh(*args):
-        """Force the component to assess the first refresh."""
-        await coordinator.async_refresh()
-
-    if hass.state == CoreState.running:
-        await async_first_refresh()
-    else:
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, async_first_refresh)
-
+    coordinator = hass.data[const.DOMAIN][scups]["coordinator"]
     # add sensor entities
     _entities = []
     _entities.extend([EdataInfoSensor(coordinator, *x) for x in INFO_SENSORS_DESC])
@@ -225,18 +144,10 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     _entities.extend([EdataCostSensor(coordinator, *x) for x in COST_SENSORS_DESC])
     async_add_entities(_entities)
 
-    # register websockets
-    async_register_websockets(hass)
-
-    # Set options callback
-    config_entry.async_on_unload(
-        config_entry.add_update_listener(coordinator.options_changed)
-    )
-
     return True
 
 
-class EdataInfoSensor(EdataEntity, SensorEntity):
+class EdataInfoSensor(EdataSensorEntity, SensorEntity):
     """Representation of the info related to an e-data sensor."""
 
     _attr_icon = "mdi:home-lightning-bolt-outline"
@@ -253,26 +164,22 @@ class EdataInfoSensor(EdataEntity, SensorEntity):
         self._attr_translation_key = None
         self._attr_name = f"edata_{coordinator.id}"
 
-    async def service_recreate_statistics(self):
-        """Recreates statistics."""
-        await self.coordinator.rebuild_recent_statistics()
 
-
-class EdataEnergySensor(EdataEntity, SensorEntity):
+class EdataEnergySensor(EdataSensorEntity, SensorEntity):
     """Representation of an energy-related e-data sensor."""
 
     _attr_icon = "mdi:counter"
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
 
-class EdataPowerSensor(EdataEntity, SensorEntity):
+class EdataPowerSensor(EdataSensorEntity, SensorEntity):
     """Representation of a power-related e-data sensor."""
 
     _attr_icon = "mdi:gauge"
     _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
 
 
-class EdataCostSensor(EdataEntity, SensorEntity):
+class EdataCostSensor(EdataSensorEntity, SensorEntity):
     """Representation of an cost-related e-data sensor."""
 
     _attr_icon = "mdi:currency-eur"
