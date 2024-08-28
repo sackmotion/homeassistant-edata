@@ -312,8 +312,10 @@ class EdataCoordinator(DataUpdateCoordinator):
             - relativedelta(months=self.cache_months)
         )
         try:
-            from_dt = max(
-                from_dt, self._edata.data["consumptions_monthly_sum"][0]["datetime"]
+            from_dt = dt_util.as_utc(
+                max(
+                    from_dt, self._edata.data["consumptions_monthly_sum"][0]["datetime"]
+                )
             )
         except KeyError:
             _LOGGER.warning("Skipping integrity check due to errors")
@@ -339,7 +341,7 @@ class EdataCoordinator(DataUpdateCoordinator):
             statistics_during_period,
             self.hass,
             from_dt,
-            datetime.now(),
+            dt_util.as_utc(datetime.now()),
             set(to_check),
             "month",
             None,
@@ -393,7 +395,7 @@ class EdataCoordinator(DataUpdateCoordinator):
 
         # give from_dt a proper default value
         if from_dt is None:
-            from_dt = (
+            from_dt = dt_util.as_utc(
                 datetime.now().replace(day=1, hour=0, minute=0, second=0)
                 - timedelta(hours=1)
                 - relativedelta(months=self.cache_months)
@@ -420,7 +422,7 @@ class EdataCoordinator(DataUpdateCoordinator):
         old_data = await get_db_instance(self.hass).async_add_executor_job(
             statistics_during_period,
             self.hass,
-            datetime(1970, 1, 1),
+            dt_util.as_utc(datetime(1970, 1, 1)),
             from_dt,
             set(to_clear),
             "hour",
@@ -453,9 +455,13 @@ class EdataCoordinator(DataUpdateCoordinator):
                 Statistics,
             )
 
-        # ... at this point, you DON'T know when will the recorder instance finish the statistics import.
-        # this is dirty, but it seems to work most of the times
-        await asyncio.sleep(5)
+            # ... at this point, you DON'T know when will the recorder instance finish the statistics import.
+            # this is dirty, but it seems to work most of the times
+            while True:
+                if get_db_instance(self.hass).backlog == 0:
+                    break
+                await asyncio.sleep(1)
+
         await self.update_statistics()
 
     async def update_statistics(self):
@@ -729,3 +735,16 @@ class EdataCoordinator(DataUpdateCoordinator):
         await self._async_update_data()
         if not await self.check_statistics_integrity():
             await self.rebuild_recent_statistics()
+
+    async def async_fetch_full_history(self):
+        """Apply an async full fetch."""
+
+        og_cache_months = self.cache_months
+        _LOGGER.warning("Fetching last two years of data")
+        self.cache_months = 23
+        await self._async_update_data()
+        if not await self.check_statistics_integrity():
+            await self.rebuild_recent_statistics()
+        _LOGGER.warning("Reducing cache items to last %s months", og_cache_months)
+        self.cache_months = og_cache_months
+        await self._async_update_data()
