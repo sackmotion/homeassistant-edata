@@ -4,6 +4,9 @@
     "button": {
       "soft_reset": {
         "name": "Restablecer"
+      },
+      "import_all_data": {
+        "name": "Importar todos los datos disponibles"
       }
     },
     "sensor": {

@@ -19,6 +19,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     _entities.append(
         EdataResetButton(coordinator, "soft_reset", coordinator.async_soft_reset)
     )
+    _entities.append(
+        EdataImportButton(coordinator, "import_all_data", coordinator.async_full_import)
+    )
     async_add_entities(_entities)
 
     return True
@@ -27,4 +30,10 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
 class EdataResetButton(EdataButtonEntity, ButtonEntity):
     """Representation of an e-data restoration button."""
 
-    _attr_icon = "mdi:restore"
+    _attr_icon = "mdi:sync-alert"
+
+
+class EdataImportButton(EdataButtonEntity, ButtonEntity):
+    """Representation of an e-data import button."""
+
+    _attr_icon = "mdi:content-save-all"
