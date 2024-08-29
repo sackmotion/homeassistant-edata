@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from config.custom_components.edata.websockets import async_register_websockets
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, EVENT_HOMEASSISTANT_START
 from homeassistant.core import CoreState, HomeAssistant, callback
@@ -13,6 +12,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from . import const, utils
 from .coordinator import EdataCoordinator
+from .websockets import async_register_websockets
 
 PLATFORMS: list[str] = ["button", "sensor"]
 _LOGGER = logging.getLogger(__name__)
