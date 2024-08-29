@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 from datetime import datetime, timedelta
 import logging
+import math
 import os
 
 from dateutil.relativedelta import relativedelta
@@ -104,9 +105,6 @@ class EdataCoordinator(DataUpdateCoordinator):
             const.STAT_ID_P2_KWH(self.id),
             const.STAT_ID_P3_KWH(self.id),
             const.STAT_ID_SURP_KWH(self.id),
-            # const.STAT_ID_P1_SURP_KWH(self.id),
-            # const.STAT_ID_P2_SURP_KWH(self.id),
-            # const.STAT_ID_P3_SURP_KWH(self.id),
             const.STAT_ID_KW(self.id),
             const.STAT_ID_P1_KW(self.id),
             const.STAT_ID_P2_KW(self.id),
@@ -129,13 +127,19 @@ class EdataCoordinator(DataUpdateCoordinator):
             )
 
         # Stats id grouped by scope
-        self.consumption_stat_ids = {
+
+        self.consumptions_stat_ids = {
             const.STAT_ID_KWH(self.id),
             const.STAT_ID_P1_KWH(self.id),
             const.STAT_ID_P2_KWH(self.id),
             const.STAT_ID_P3_KWH(self.id),
+        }
+
+        self.surplus_stat_ids = {
             const.STAT_ID_SURP_KWH(self.id),
         }
+
+        self.energy_stat_ids = self.consumptions_stat_ids.union(self.surplus_stat_ids)
 
         self.maximeter_stat_ids = {
             const.STAT_ID_KW(self.id),
@@ -158,6 +162,7 @@ class EdataCoordinator(DataUpdateCoordinator):
         # We also track last stats sum and datetime
         self._last_stats_sum = None
         self._last_stats_dt = None
+        self._corrupt_stats = []
 
         hass.data[const.DOMAIN][self.id]["dt_last"] = self._last_stats_dt
 
@@ -302,24 +307,21 @@ class EdataCoordinator(DataUpdateCoordinator):
         """Check if statistics differ from stored data since a given datetime."""
 
         _LOGGER.warning("Running statistics integrity check")
+        self._corrupt_stats = []
+
         # recalculate all data
         await self.hass.async_add_executor_job(self._edata.process_data, False)
 
         # give from_dt a proper default value
-        from_dt = (
-            datetime.now().replace(day=1, hour=0, minute=0, second=0)
-            - timedelta(hours=1)
-            - relativedelta(months=self.cache_months)
+        from_dt = dt_util.as_utc(
+            self._edata.data["consumptions_monthly_sum"][0]["datetime"]
         )
-        try:
-            from_dt = dt_util.as_utc(
-                max(
-                    from_dt, self._edata.data["consumptions_monthly_sum"][0]["datetime"]
-                )
-            )
-        except KeyError:
-            _LOGGER.warning("Skipping integrity check due to errors")
 
+        _LOGGER.debug(
+            "%s: performing integrity check since %s",
+            self.scups,
+            dt_util.as_local(from_dt),
+        )
         # get all statistic_ids starting with edata:<id/scups>
         all_ids = await get_db_instance(self.hass).async_add_executor_job(
             list_statistic_ids, self.hass
@@ -345,61 +347,62 @@ class EdataCoordinator(DataUpdateCoordinator):
             set(to_check),
             "month",
             None,
-            {"change"},
+            {"change", "state"},
         )
 
         # Checksums
         _consumptions_checksum = 0
+        _consumptions_tariff_checksum = [0, 0, 0]
         _surplus_checksum = 0
 
         for c in self._edata.data["consumptions_monthly_sum"]:
             _consumptions_checksum += c["value_kWh"]
+            _consumptions_tariff_checksum[0] += c["value_p1_kWh"]
+            _consumptions_tariff_checksum[1] += c["value_p2_kWh"]
+            _consumptions_tariff_checksum[2] += c["value_p3_kWh"]
             _surplus_checksum += c["surplus_kWh"]
 
-        _stats_sum = 0
-        if (stats := data.get(const.STAT_ID_KWH(self.id), None)) is not None:
-            for c in stats:
-                _stats_sum += c["change"]
+        for test_tuple in (
+            (_consumptions_checksum, const.STAT_ID_KWH(self.id)),
+            (_consumptions_tariff_checksum[0], const.STAT_ID_P1_KWH(self.id)),
+            (_consumptions_tariff_checksum[1], const.STAT_ID_P2_KWH(self.id)),
+            (_consumptions_tariff_checksum[2], const.STAT_ID_P3_KWH(self.id)),
+            (_surplus_checksum, const.STAT_ID_SURP_KWH(self.id)),
+        ):
+            _stats_sum = 0
+            if (stats := data.get(test_tuple[1], None)) is not None:
+                _LOGGER.debug(
+                    "First evaluated sample of %s is %s",
+                    test_tuple[1],
+                    dt_util.as_local(dt_util.utc_from_timestamp(stats[0]["start"])),
+                )
+                for c in stats:
+                    _stats_sum += c["change"]
+                    if c["change"] < 0:
+                        _LOGGER.warning(
+                            "%s: negative change found at '%s'",
+                            self.scups,
+                            test_tuple[1],
+                        )
 
-        if round(_consumptions_checksum) != round(_stats_sum):
-            _LOGGER.warning(
-                "%s: consumptions statistics are corrupt, checksum is %s, got %s",
-                self.scups,
-                _consumptions_checksum,
-                _stats_sum,
-            )
-            return False
+            if not math.isclose(test_tuple[0], _stats_sum, abs_tol=0.1):
+                _LOGGER.warning(
+                    "%s: '%s' statistic is corrupt, its checksum is %s, got %s",
+                    self.scups,
+                    test_tuple[1],
+                    test_tuple[0],
+                    _stats_sum,
+                )
+                self._corrupt_stats.append(test_tuple[1])
 
-        _stats_sum = 0
-        if (stats := data.get(const.STAT_ID_SURP_KWH(self.id), None)) is not None:
-            for c in stats:
-                _stats_sum += c["change"]
-
-        if round(_surplus_checksum) != round(_stats_sum):
-            _LOGGER.warning(
-                "%s: surplus statistics are corrupt, checksum is %s, got %s",
-                self.scups,
-                _surplus_checksum,
-                _stats_sum,
-            )
-            return False
-
-        _LOGGER.warning("No corrupt statistics detected")
-        return True
+        _LOGGER.debug("%s: %s corrupt statistics", self.scups, len(self._corrupt_stats))
+        return len(self._corrupt_stats) == 0
 
     async def rebuild_recent_statistics(self, from_dt: datetime | None = None):
         """Rebuild edata statistics since a given datetime. Defaults to last year."""
 
         # recalculate all data
         await self.hass.async_add_executor_job(self._edata.process_data, False)
-
-        # give from_dt a proper default value
-        if from_dt is None:
-            from_dt = dt_util.as_utc(
-                datetime.now().replace(day=1, hour=0, minute=0, second=0)
-                - timedelta(hours=1)
-                - relativedelta(months=self.cache_months)
-            )
 
         # get all statistic_ids starting with edata:<id/scups>
         all_ids = await get_db_instance(self.hass).async_add_executor_job(
@@ -411,7 +414,16 @@ class EdataCoordinator(DataUpdateCoordinator):
             if x["statistic_id"].startswith(self._stat_id_preamble)
         ]
 
+        # give from_dt a proper default value
+        if from_dt is None:
+            from_dt = dt_util.as_utc(
+                self._edata.data["consumptions_monthly_sum"][0]["datetime"]
+            )
+            # if from_dt is none, only corrupt stats get a reset
+            to_clear = [x for x in to_clear if x in self._corrupt_stats]
+
         if len(to_clear) == 0:
+            _LOGGER.warning("%s: there are no corrupt statistics")
             return
 
         # retrieve stored statistics along with its metadata
@@ -439,6 +451,10 @@ class EdataCoordinator(DataUpdateCoordinator):
 
         # now restore old statistics
         for stat_id in old_data:
+            self._last_stats_dt[stat_id] = dt_util.utc_from_timestamp(
+                old_data[stat_id][-1]["start"]
+            )
+            self._last_stats_sum[stat_id] = old_data[stat_id][-1]["sum"]
             _LOGGER.warning("Restoring statistic id '%s'", stat_id)
             get_db_instance(self.hass).async_import_statistics(
                 old_metadata[stat_id][1],
@@ -455,14 +471,12 @@ class EdataCoordinator(DataUpdateCoordinator):
                 Statistics,
             )
 
-            # ... at this point, you DON'T know when will the recorder instance finish the statistics import.
-            # this is dirty, but it seems to work most of the times
-            while True:
-                if get_db_instance(self.hass).backlog == 0:
-                    break
-                await asyncio.sleep(1)
+        self._corrupt_stats = []
 
-        await self.update_statistics()
+        await self._update_consumption_stats()
+        if self.billing_rules:
+            # costs are only processed if billing functionality is enabled
+            await self._update_cost_stats()
 
     async def update_statistics(self):
         """Update Long Term Statistics with newly found data."""
@@ -492,7 +506,7 @@ class EdataCoordinator(DataUpdateCoordinator):
                 stat_id,
             )
 
-            if stat_id in self.consumption_stat_ids:
+            if stat_id in self.energy_stat_ids:
                 metadata = StatisticMetaData(
                     has_mean=False,
                     has_sum=True,
@@ -528,10 +542,10 @@ class EdataCoordinator(DataUpdateCoordinator):
 
         _LOGGER.debug("%s: building new consumption statistics", self.scups)
 
-        new_stats = {x: [] for x in self.consumption_stat_ids}
+        new_stats = {x: [] for x in self.energy_stat_ids}
 
         # init as 0 if need
-        for stat_id in self.consumption_stat_ids:
+        for stat_id in self.energy_stat_ids:
             if stat_id not in self._last_stats_sum:
                 self._last_stats_sum[stat_id] = 0
 
@@ -543,7 +557,7 @@ class EdataCoordinator(DataUpdateCoordinator):
                 const.STAT_ID_KWH(self.id),
                 const.STAT_ID_SURP_KWH(self.id),
             ]
-            by_tariff_ids.extend([x for x in self.consumption_stat_ids if _p in x])
+            by_tariff_ids.extend([x for x in self.energy_stat_ids if _p in x])
             for stat_id in by_tariff_ids:
                 if (stat_id not in self._last_stats_dt) or (
                     dt_found >= self._last_stats_dt[stat_id]

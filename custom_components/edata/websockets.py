@@ -14,11 +14,11 @@ from homeassistant.core import HomeAssistant, callback
 
 from . import const
 from .utils import (
+    get_attributes,
     get_consumptions_history,
     get_costs_history,
     get_maximeter_history,
     get_surplus_history,
-    get_attributes,
 )
 
 _LOGGER = logging.getLogger(__name__)
