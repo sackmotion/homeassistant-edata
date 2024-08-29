@@ -132,7 +132,9 @@ def OPTIONS_STEP_FORMULAS(
     else:
         def_formulas = const.DEFAULT_CUSTOM_BILLING_FORMULAS
 
-    if prev_options.get(const.CONF_PVPC, False) != is_pvpc:
+    if (prev_options.get(const.CONF_PVPC, False) != is_pvpc) or not prev_options.get(
+        const.CONF_BILLING, False
+    ):
         return {
             vol.Required(
                 const.BILLING_ENERGY_FORMULA,
