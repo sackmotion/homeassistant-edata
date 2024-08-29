@@ -455,15 +455,15 @@ Para acceder a los mismos, puede consumir la propia API de websockets que utiliz
 
 **No tengo datos de ayer**
 
-Muchos me escribís preguntando por los datos de ayer. Veréis, no es tan sencillo. La API de Datadis sólo te permite hacer una misma petición cada 24 horas, de modo que si a vuestra integración le toca a las 17h (por ejemplo), y tu distribuidora sube tus datos de ayer a las 19h, nunca dispondrás de los datos de ayer. Esto puede mitigarse con un pequeño algoritmo que vaya retrasando la petición una hora cada día hasta encontrar la franja en la que encuentres los datos, de modo que al final "sincronices" la hora de tu descarga con una hora próxima a la de la adición de los datos, o indicando una ventana para la actualización (y que cada uno investigue cuál le viene bien a su CUPS).
+> Muchos me escribís preguntando por los datos de ayer. Veréis, no es tan sencillo. La API de Datadis sólo te permite hacer una misma petición cada 24 horas, de modo que si a vuestra integración le toca a las 17h (por ejemplo), y tu distribuidora sube tus datos de ayer a las 19h, nunca dispondrás de los datos de ayer. Esto puede mitigarse con un pequeño algoritmo que vaya retrasando la petición una hora cada día hasta encontrar la franja en la que encuentres los datos, de modo que al final "sincronices" la hora de tu descarga con una hora próxima a la de la adición de los datos, o indicando una ventana para la actualización (y que cada uno investigue cuál le viene bien a su CUPS).
 
 **Los datos me aparecen en la web de Datadis pero no en la integración**
 
-Los datos que sí aparecen en la web de Datadis, pero no en edata. Nosotros consumimos la API privada de Datadis, pero ellos en sus gráficos no utilizan la misma API (o tienen distintos privilegios). Esto no es tan raro, ni una mala práctica (de hecho es buena). Este es el motivo por el cual la disponibilidad de los datos varía entre ambas fuentes.
+> Los datos que sí aparecen en la web de Datadis, pero no en edata. Nosotros consumimos la API privada de Datadis, pero ellos en sus gráficos no utilizan la misma API (o tienen distintos privilegios). Esto no es tan raro, ni una mala práctica (de hecho es buena). Este es el motivo por el cual la disponibilidad de los datos varía entre ambas fuentes.
 
 **He cambiado de comercializadora y he dejado de recibir datos**
 
-Los datos del mes de inicio de un nuevo contrato no aparecen, porque no los devuelve la API de Datadis. Desconozco el motivo pero es así.
+> Los datos del mes de inicio de un nuevo contrato no aparecen, porque no los devuelve la API de Datadis. Desconozco el motivo pero es así.
 
 **Veo datos inconsistentes, huecos, o el panel de energía no muestra lo mismo que las tarjetas**
 
@@ -474,4 +474,4 @@ Los datos del mes de inicio de un nuevo contrato no aparecen, porque no los devu
 
 **Nada de lo anterior soluciona mi problema**
 
-Pásate por las _issues_ del repositorio por si alguien tiene el mismo problema. En caso contrario, puedes crear tú la _issue_ aportando logs y descripción de tu problema.
+> Pásate por las _issues_ del repositorio por si alguien tiene el mismo problema. En caso contrario, puedes crear tú la _issue_ aportando logs y descripción de tu problema.
