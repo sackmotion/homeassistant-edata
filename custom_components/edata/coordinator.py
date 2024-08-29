@@ -395,7 +395,9 @@ class EdataCoordinator(DataUpdateCoordinator):
                 )
                 self._corrupt_stats.append(test_tuple[1])
 
-        _LOGGER.debug("%s: %s corrupt statistics", self.scups, len(self._corrupt_stats))
+        _LOGGER.warning(
+            "%s: %s corrupt statistics", self.scups, len(self._corrupt_stats)
+        )
         return len(self._corrupt_stats) == 0
 
     async def rebuild_recent_statistics(self, from_dt: datetime | None = None):
@@ -728,19 +730,7 @@ class EdataCoordinator(DataUpdateCoordinator):
             os.rename(edata_file, edata_backup_file)
 
         _LOGGER.debug("%s: deleting mem cache", self.scups)
-        self._edata.data = EdataData(
-            supplies=[],
-            contracts=[],
-            consumptions=[],
-            maximeter=[],
-            pvpc=[],
-            consumptions_daily_sum=[],
-            consumptions_monthly_sum=[],
-            cost_hourly_sum=[],
-            cost_daily_sum=[],
-            cost_monthly_sum=[],
-        )
-        self._edata.last_update = {x: datetime(1970, 1, 1) for x in self._edata.data}
+        self._edata.reset()
 
     async def async_soft_reset(self):
         """Apply an async full reset."""
@@ -749,16 +739,26 @@ class EdataCoordinator(DataUpdateCoordinator):
         await self._async_update_data()
         if not await self.check_statistics_integrity():
             await self.rebuild_recent_statistics()
+        else:
+            _LOGGER.warning("%s: statistics recreation is not needed", self.scups)
 
-    async def async_fetch_full_history(self):
+    async def async_full_import(self):
         """Apply an async full fetch."""
 
         og_cache_months = self.cache_months
-        _LOGGER.warning("Fetching last two years of data")
+
+        _LOGGER.warning("Importing last two years of data from Datadis")
         self.cache_months = 23
         await self._async_update_data()
+
+        # check if consumptions statistics are wrong
         if not await self.check_statistics_integrity():
             await self.rebuild_recent_statistics()
-        _LOGGER.warning("Reducing cache items to last %s months", og_cache_months)
+        else:
+            _LOGGER.warning("%s: statistics recreation is not needed", self.scups)
+
+        _LOGGER.debug(
+            "%s: reducing cache items to last %s months", self.scups, og_cache_months
+        )
         self.cache_months = og_cache_months
         await self._async_update_data()
