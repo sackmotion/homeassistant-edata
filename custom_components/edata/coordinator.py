@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 from datetime import datetime, timedelta
 import logging
@@ -12,7 +11,7 @@ import os
 from dateutil.relativedelta import relativedelta
 
 from edata.const import PROG_NAME as EDATA_PROG_NAME
-from edata.definitions import ATTRIBUTES, EdataData, PricingRules
+from edata.definitions import ATTRIBUTES, PricingRules
 from edata.helpers import EdataHelper
 from edata.processors import utils
 from homeassistant.components.recorder.db_schema import Statistics
