@@ -64,9 +64,23 @@ Una vez satisfecho lo anterior, los pasos a seguir para la instalación son:
 
 ## Sensores de la integración
 
-La integración ofrece los sensores de la figura. Cada sensor dispone de una serie de atributos visibles al pinchar, por ejemplo indicando qué parte del consumo se ha registrado en P1, P2, y P3.
+La integración ofrece los sensores de la figura. Cada uno de estos sensores dispone de una serie de atributos (al clicar) ampliando la información, por ejemplo indicando qué parte del consumo se ha registrado en P1, P2, y P3, o la fecha del último consumo registrado.
 
 ![Sensores](assets/sensors.png)
+
+El sensor `sensor.edata_xxxx` es un tanto especial, ya que incluye información relativa al contrato vigente en el CUPS configurado, y su estado indica el último dato descargado de Datadis.
+
+> **NOTA:** Si no ves los datos de ayer, lee el [FAQ](#FAQ)
+
+## Acciones de la integración
+
+Desde la versión 2024.07.5, la integración incorpora las siguientes acciones, accesibles desde el panel del dispositivo edata que desea configurar.
+
+* **Restablecer:** Botón que puede arreglar algunas incoherencias en el último año de datos. Útil si experimentas huecos o consumos duplicados.
+* **Importar todos los datos disponibles:** Botón que sincroniza edata con todos los datos disponibles en Datadis. Datadis limita el histórico a los 2 últimos años, y no es posible obtenerlos antes de dicha fecha mediante la API.
+
+
+![Acciones](assets/actions.png)
 
 ## Integración con panel Energía (Long Term Statistics)
 
