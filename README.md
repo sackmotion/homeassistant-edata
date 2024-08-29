@@ -19,12 +19,13 @@ Para la visualización de los datos, existen varias alternativas:
 2. [Limitaciones](#Limitaciones)<br>
 3. [Instalación](#Instalación)<br>
 4. [Sensores de la integración](#Sensores-de-la-integración)<br>
-5. [Integración con panel Energía (Long Term Statistics)](#Integración-con-panel-Energía-Long-Term-Statistics)<br>
-6. [Configurar la tarificación](#Configurar-la-tarificación)<br>
-7. [Gráficas con tarjeta nativa](#Gráficas-con-tarjeta-nativa)<br>
-8. [Gráficas sobre ApexCharts-card](#Gráficas-sobre-apexcharts-card)<br>
-9. [Acceso a datos descargados](#Acceso-a-datos-descargados)<br>
-10. [FAQ](#FAQ)
+5. [Acciones de la integración](#Acciones-de-la-integración)<br>
+6. [Integración con panel Energía (Long Term Statistics)](#Integración-con-panel-Energía-Long-Term-Statistics)<br>
+7. [Configurar la tarificación](#Configurar-la-tarificación)<br>
+8. [Gráficas con tarjeta nativa](#Gráficas-con-tarjeta-nativa)<br>
+9. [Gráficas sobre ApexCharts-card](#Gráficas-sobre-apexcharts-card)<br>
+10. [Acceso a datos descargados](#Acceso-a-datos-descargados)<br>
+11. [FAQ](#FAQ)
 
 ## Ejemplo de Dashboard
 
@@ -124,7 +125,7 @@ Navegue hasta `Ajustes > Dispositivos y Servicios > XXXX (edata) - Configurar`. 
 
 Las variables disponibles son las configuradas en el paso anterior y los consumos del periodo a tarificar, pero con los siguientes nombres:
 * `electricity_tax`: impuesto a la electricidad (e.g. 1.05 para el 5%)
-* `iva_tax`: IVA (e.g., 1.21 para 21%)
+* `iva_tax`: IVA (e.g., 1.10 para 10%)
 * `kwh_eur`: coste del kWh en euros para la hora del consumo (se escoge automáticamente entre p1, p2, y p3; según convenga)
 * `kwh`: energía consumida en kWh
 * `p1_kw` y `p2_kw`: potencia contratada en P1 y P2 (en kW)
