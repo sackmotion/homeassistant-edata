@@ -16,7 +16,7 @@ INFO_SENSORS_DESC = [
     # (name, state_key, [attributes_key])
     (
         "info",
-        "cups",
+        "last_registered_date",
         ["contract_p1_kW", "contract_p2_kW"],
     ),
 ]
