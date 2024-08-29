@@ -92,7 +92,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         authorized_nif,
         pricing_rules,
     )
-    hass.data[const.DOMAIN][scups]["coordinator"] = coordinator
+    hass.data[const.DOMAIN][scups.lower()]["coordinator"] = coordinator
 
     # postpone first refresh to speed up startup
     @callback

@@ -13,7 +13,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
 
     # get configured parameters
     scups = config_entry.data[const.CONF_SCUPS]
-    coordinator = hass.data[const.DOMAIN][scups]["coordinator"]
+    coordinator = hass.data[const.DOMAIN][scups.lower()]["coordinator"]
     # add sensor entities
     _entities = []
     _entities.append(
